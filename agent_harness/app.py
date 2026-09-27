@@ -176,6 +176,11 @@ if prompt := st.chat_input("Ask the agent to do something..."):
             user_tool_messages = history[1:] if len(history) > 0 and history[0].get("role") == "system" else history
             recent_messages = user_tool_messages[-40:]
             
+            # SAFE TRUNCATION: Never orphan tool messages. 
+            # If the window starts with a 'tool' message, the API will crash or return an empty string.
+            while recent_messages and recent_messages[0].get("role") == "tool":
+                recent_messages.pop(0)
+            
             for msg in recent_messages:
                 # Create a shallow copy to modify content without affecting actual history UI
                 managed_msg = dict(msg)
@@ -204,9 +209,9 @@ if prompt := st.chat_input("Ask the agent to do something..."):
                     continue
                 elif "Failed to parse tool call arguments as JSON" in response or "tool_use_failed" in response:
                     st.warning("⚠️ Agent generated invalid JSON. Auto-recovering...")
-                    # Feed the error back to the model to try again
                     error_msg = f"System Error: Your previous tool call failed due to malformed JSON syntax. Please rewrite your tool call using strictly valid JSON. Raw error: {response}"
                     history.append({"role": "user", "content": error_msg})
+                    st.session_state.messages.append({"role": "user", "content": f"⚙️ Auto-Recovery Triggered: JSON Syntax Error"})
                     continue
                 else:
                     st.error(f"Critical System Failure: {response}")
@@ -222,6 +227,14 @@ if prompt := st.chat_input("Ask the agent to do something..."):
             # Save assistant message to state and history
             if response_message.content:
                 st.markdown(response_message.content)
+                
+            if not response_message.content and not response_message.tool_calls:
+                st.warning("⚠️ The model returned an empty response. Auto-recovering...")
+                error_msg = "System Error: You generated an empty response. You MUST either output a text message to the user, or execute a tool (like `write_file` or `replace_file_content`) to complete the task."
+                history.append({"role": "user", "content": error_msg})
+                # Add to session state so the UI shows the recovery attempt
+                st.session_state.messages.append({"role": "user", "content": f"⚙️ Auto-Recovery Triggered: {error_msg}"})
+                continue
             
             # Always save the assistant message to session state, even if content is None (it might have tool calls)
             asst_msg = {"role": "assistant", "content": response_message.content or ""}
