@@ -111,6 +111,59 @@ with st.sidebar:
 
     st.divider()
     
+    st.subheader("🐙 Clone GitHub Repo")
+    github_url = st.text_input("GitHub Repository URL", placeholder="https://github.com/user/repo.git")
+    if st.button("Clone to Workspace", use_container_width=True):
+        if github_url:
+            with st.spinner("Cloning repository..."):
+                # Clean current workspace if it's not the default
+                import shutil
+                if os.path.exists(st.session_state.project_dir) and "workspace_" in st.session_state.project_dir:
+                    shutil.rmtree(st.session_state.project_dir)
+                
+                # Create a new temp workspace
+                temp_dir = os.path.join(os.getcwd(), f"workspace_{os.urandom(4).hex()}")
+                os.makedirs(temp_dir, exist_ok=True)
+                
+                # Run git clone
+                import subprocess
+                result = subprocess.run(["git", "clone", github_url, temp_dir], capture_output=True, text=True)
+                
+                if result.returncode == 0:
+                    st.session_state.project_dir = temp_dir
+                    st.success(f"Successfully cloned repository into workspace!")
+                    st.rerun()
+                else:
+                    st.error(f"Failed to clone repository: {result.stderr}")
+        else:
+            st.warning("Please enter a GitHub URL.")
+            
+    st.divider()
+    
+    st.subheader("☁️ Cloud Upload (For Deployed App)")
+    st.caption("If you are using the cloud URL, upload your files here so the agent can see them!")
+    uploaded_files = st.file_uploader("Upload files to Workspace", accept_multiple_files=True)
+    if uploaded_files:
+        for file in uploaded_files:
+            file_path = os.path.join(st.session_state.project_dir, file.name)
+            with open(file_path, "wb") as f:
+                f.write(file.getbuffer())
+        st.success(f"Successfully uploaded {len(uploaded_files)} files to the workspace!")
+        
+    # Add Download Button for the Workspace
+    from download_helper import get_workspace_zip
+    if st.button("📦 Download Workspace (.zip)", use_container_width=True):
+        zip_buffer = get_workspace_zip(st.session_state.project_dir)
+        st.download_button(
+            label="⬇️ Click to Save to Laptop",
+            data=zip_buffer,
+            file_name="ai_workspace_changes.zip",
+            mime="application/zip",
+            use_container_width=True
+        )
+        
+    st.divider()
+    
     st.subheader("Prompt Management")
     new_system_prompt = st.text_area(
         "System Prompt", 

@@ -1,7 +1,7 @@
 import os
 import subprocess
 
-def read_file(filepath: str) -> str:
+def read_file(filepath: str, **kwargs) -> str:
     """Reads the contents of a file."""
     try:
         with open(filepath, 'r') as f:
@@ -9,7 +9,7 @@ def read_file(filepath: str) -> str:
     except Exception as e:
         return f"Error reading file {filepath}: {e}"
 
-def list_dir(directory: str) -> str:
+def list_dir(directory: str, **kwargs) -> str:
     """Lists the contents of a directory."""
     try:
         files = os.listdir(directory)
@@ -17,7 +17,7 @@ def list_dir(directory: str) -> str:
     except Exception as e:
         return f"Error listing directory {directory}: {e}"
 
-def execute_command(command: str, cwd: str = ".") -> str:
+def execute_command(command: str, cwd: str = ".", **kwargs) -> str:
     """Executes a shell command and returns the output."""
     try:
         result = subprocess.run(
@@ -34,7 +34,7 @@ def execute_command(command: str, cwd: str = ".") -> str:
     except Exception as e:
         return f"Error executing command: {e}"
 
-def write_file(filepath: str, content: str) -> str:
+def write_file(filepath: str, content: str, **kwargs) -> str:
     """Writes the specified content to a file, overwriting it entirely."""
     try:
         os.makedirs(os.path.dirname(os.path.abspath(filepath)), exist_ok=True)
@@ -44,7 +44,7 @@ def write_file(filepath: str, content: str) -> str:
     except Exception as e:
         return f"Error writing to file {filepath}: {e}"
 
-def replace_file_content(filepath: str, target_content: str, replacement_content: str) -> str:
+def replace_file_content(filepath: str, target_content: str, replacement_content: str, **kwargs) -> str:
     """Replaces a specific contiguous block of text in a file with new text."""
     try:
         with open(filepath, 'r') as f:
@@ -61,7 +61,7 @@ def replace_file_content(filepath: str, target_content: str, replacement_content
     except Exception as e:
         return f"Error modifying file {filepath}: {e}"
 
-def find_files(directory: str) -> str:
+def find_files(directory: str, **kwargs) -> str:
     """Recursively lists all files in a directory tree."""
     try:
         all_files = []
