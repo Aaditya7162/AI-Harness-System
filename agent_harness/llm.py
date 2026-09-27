@@ -10,7 +10,7 @@ current_provider_index = 0
 current_key_index = 0
 
 class ProviderRouter:
-    def __init__(self):
+    def __init__(self, custom_provider=None, custom_key=None):
         # Force reload from .env file every single time so the user can change keys on the fly!
         load_dotenv(override=True)
         
@@ -19,7 +19,32 @@ class ProviderRouter:
         
         self.providers = []
         
-        # 1. Check for Groq
+        # 0. Check for Custom Key from UI (Takes Top Priority)
+        if custom_provider and custom_key and custom_key.strip():
+            prov_name = custom_provider.lower()
+            custom_entry = {
+                "name": prov_name,
+                "keys": [custom_key.strip()]
+            }
+            if prov_name == "groq":
+                custom_entry["model"] = "openai/gpt-oss-120b"
+                custom_entry["fallback_model"] = "openai/gpt-oss-20b"
+            elif prov_name == "deepseek":
+                custom_entry["model"] = "deepseek-coder"
+                custom_entry["base_url"] = "https://api.deepseek.com"
+            elif prov_name == "qwen":
+                custom_entry["model"] = "qwen2.5-coder-32b-instruct"
+                custom_entry["base_url"] = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+            elif prov_name == "gemini":
+                custom_entry["model"] = "gemini-3.8-flash"
+                custom_entry["base_url"] = "https://generativelanguage.googleapis.com/v1beta/openai/"
+            elif prov_name == "requesty":
+                custom_entry["model"] = "meta-llama/llama-3.1-70b-instruct"
+                custom_entry["base_url"] = "https://router.requesty.ai/v1"
+                
+            self.providers.append(custom_entry)
+        
+        # 1. Check for Groq (.env)
         keys_str = os.getenv("GROQ_API_KEYS")
         groq_keys = [k.strip() for k in keys_str.split(",")] if keys_str else []
         single_groq = os.getenv("GROQ_API_KEY")
@@ -31,7 +56,7 @@ class ProviderRouter:
                 "name": "groq",
                 "keys": [k for k in groq_keys if k],
                 "model": "openai/gpt-oss-120b",
-                "fallback_model": "gemma2-9b-it" # Gemma 9B fallback on Groq
+                "fallback_model": "openai/gpt-oss-20b" 
             })
             
         # 2. Check for DeepSeek
@@ -92,14 +117,17 @@ class ProviderRouter:
             current_provider_index = 0
             current_key_index = 0
             
-        self.active_provider = self.providers[current_provider_index]
-        if current_key_index >= len(self.active_provider["keys"]):
-            current_key_index = 0
-            
-        self.active_key = self.active_provider["keys"][current_key_index]
-        self.model = self.active_provider["model"]
+        self._initialize_active_client()
+
+    def _initialize_active_client(self):
+        """Dynamically re-initializes the active client based on the current global indices."""
+        global current_provider_index
+        global current_key_index
         
-        # Initialize Client
+        self.active_provider = self.providers[current_provider_index]
+        self.active_key = self.active_provider["keys"][current_key_index]
+        self.model = self.active_provider.get("current_active_model", self.active_provider["model"])
+        
         if self.active_provider["name"] == "groq":
             self.client = Groq(api_key=self.active_key, max_retries=0)
         else:
@@ -110,6 +138,9 @@ class ProviderRouter:
             )
 
     def chat_completion(self, messages, tools=None):
+        # ALWAYS sync the client with the global state in case it was hot-swapped!
+        self._initialize_active_client()
+        
         try:
             kwargs = {
                 "model": self.model,
@@ -146,11 +177,12 @@ class ProviderRouter:
                 next_provider = self.providers[current_provider_index]["name"]
                 return f"PROVIDER_FALLBACK_{next_provider.upper()}"
                 
-            # 3. If out of providers, try the Groq Gemma fallback model as an absolute last resort
+            # 3. If out of providers, try the Groq OSS fallback model as an absolute last resort
             if self.active_provider["name"] == "groq" and "fallback_model" in self.active_provider:
-                if self.model != self.active_provider["fallback_model"]:
-                    self.model = self.active_provider["fallback_model"]
-                    return "MODEL_FALLBACK_GEMMA"
+                current_active = self.active_provider.get("current_active_model", self.active_provider["model"])
+                if current_active != self.active_provider["fallback_model"]:
+                    self.active_provider["current_active_model"] = self.active_provider["fallback_model"]
+                    return "MODEL_FALLBACK_OSS"
                     
             return f"Error: {error_str}"
 

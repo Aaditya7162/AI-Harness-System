@@ -37,6 +37,22 @@ with st.sidebar:
         
     st.divider()
     
+    st.subheader("🔑 Custom API Key")
+    custom_provider = st.selectbox(
+        "Select Provider", 
+        ["Default (.env)", "Groq", "DeepSeek", "Qwen", "Gemini", "Requesty"]
+    )
+    
+    if custom_provider != "Default (.env)":
+        custom_key = st.text_input(f"Enter {custom_provider} Key:", type="password")
+        st.session_state.custom_provider = custom_provider
+        st.session_state.custom_key = custom_key
+    else:
+        st.session_state.custom_provider = None
+        st.session_state.custom_key = None
+        
+    st.divider()
+    
     st.subheader("Project Settings")
     
     # Text input for direct path pasting
@@ -132,7 +148,10 @@ if prompt := st.chat_input("Ask the agent to do something..."):
     
     # Run Agent Loop
     with st.chat_message("assistant"):
-        llm = GroqClient()
+        llm = GroqClient(
+            custom_provider=st.session_state.get("custom_provider"),
+            custom_key=st.session_state.get("custom_key")
+        )
         
         # Build history for LLM
         history = [{"role": "system", "content": st.session_state.system_prompt}]
@@ -204,8 +223,8 @@ if prompt := st.chat_input("Ask the agent to do something..."):
                     provider_name = response.split("_")[-1]
                     st.success(f"🔄 API Error Detected! Autonomous Agent aggressively hot-swapping to Backup Provider ({provider_name})...")
                     continue
-                elif response == "MODEL_FALLBACK_GEMMA":
-                    st.warning("⚠️ Critical Token Limit Reached! Autonomous Agent swapping to Last-Resort Backup Model (Gemma 9B) to continue execution...")
+                elif response == "MODEL_FALLBACK_OSS":
+                    st.warning("⚠️ Critical Token Limit Reached! Autonomous Agent swapping to Last-Resort Backup Model (GPT-OSS-20B) to continue execution...")
                     continue
                 elif "Failed to parse tool call arguments as JSON" in response or "tool_use_failed" in response:
                     st.warning("⚠️ Agent generated invalid JSON. Auto-recovering...")
